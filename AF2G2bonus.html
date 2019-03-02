@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>AF2 - Bonus</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
+    
+</head>
+<body style="text-align: center;" onload="inicializar()">
+    <h1>AF2 - Grupo 2b</h1>
+    <h2>Bonus</h2>
+    <br>
+    <form>
+        <div class="form-group row justify-content-center">
+                <label for="SELECTPasso" class="col-sm-2 col-form-label">Escolha um passo(h):</label>
+                <div class="col-sm-1">
+                    <select id="SELECTPasso" value="A" class="form-control form-control-sm" onchange="calculaValores(SELECTPasso.value)"></select>
+                </div>
+        </div>
+    </form>      
+    <hr> 
+    <div class="container-fluid">
+        <div class="row no-gutters">
+            <div class="col">
+                <table id="myTable" class="table table-hover table-sm table-bordered"></table>
+            </div>
+            <div class="col-7">
+                <div id="chartContainer"><canvas id="myChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+    
+</body>
+<script>var passoOP =
+    [
+        {
+            titulo: "0,0625",
+            valor: 0.0625,
+            round: 4,
+        },
+        {
+            titulo: "0,125",
+            valor: 0.125,
+            round: 3,
+        },
+        {
+            titulo: "0,25",
+            valor: 0.25,
+            round: 2,
+        },
+        {
+            titulo: "0,5",
+            valor: 0.5,
+            round: 1,
+        },
+        {
+            titulo: "1",
+            valor: 1.0,
+            round: 0,
+        },
+    ];
+    function inicializar()
+    {
+        SELECTPasso = document.getElementById("SELECTPasso");
+        for (i = 0; i < passoOP.length; i++)
+        {
+            var opcao = document.createElement('option');
+            opcao.value = i;
+            opcao.innerHTML = passoOP[i].titulo;
+            SELECTPasso.appendChild(opcao);
+        }
+        SELECTPasso.value = 0;    
+        calculaValores(SELECTPasso.value);
+    }
+    function displayTabela(dados,table)
+    {   
+        var totalLinhas = table.rows.length;
+        while (--totalLinhas >= 0)
+            table.deleteRow(totalLinhas);
+    
+        for(var r = 0; r<=dados.length-1; r++)
+        {
+            row = table.insertRow(-1);
+            for(var c = 0; c <= 6; c++)
+            {
+                cell = row.insertCell(-1);
+                cell.innerHTML  = dados[r][c];
+            }
+        } 
+    }
+    
+    var chart = null;
+    function elaboraGrafico(dados) {
+        var ctx = document.getElementById('myChart').getContext('2d');
+        var label = [];
+        var distancia = [];
+        var heun = [];
+        for(var i = 1; i<=dados.length-1; i++)
+        {
+            label.push(dados[i][0]);
+            distancia.push(dados[i][1]);
+        }
+        if(chart !=null){
+            chart.destroy();
+        }
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+            labels: label,
+            datasets: [{
+                label: dados[0][1],
+                fill: false,
+                borderColor: 'rgb(255, 170, 170)',
+                data: distancia,
+            },]
+            },
+            options: {
+            responsive: true,
+            }
+        });
+    }
+    
+    function round(numero, decimais)
+    {
+        factor = Math.pow(10, decimais);
+        return Math.round(numero * factor) / factor;
+    }
+    
+    function calcularDados(dados, velInicial, funcao, decimais,passo) {
+        let velFinal = 285.00/3.6;
+        let velocidade  = velInicial;
+        let posicao = 0;
+        let tempo = 0;
+        
+        let k1Posicao=0;
+        let k1V=0;
+        let k2Posicao=0;
+        let k2V=0;
+        
+        do{ 
+            k1Posicao = velocidade;
+            k1V = funcao(tempo,posicao,velocidade);
+            k2Posicao = velocidade + (k1V * passo);
+            k2V = funcao(tempo + passo, posicao + k1Posicao*passo, velocidade+k1V*passo);
+    
+            let parcial = [tempo.toFixed(decimais),posicao.toFixed(2),velocidade.toFixed(4),k1Posicao.toFixed(4),k1V.toFixed(4),k2Posicao.toFixed(4),k2V.toFixed(4) ];
+    
+            posicao = posicao + (1/2)*(k1Posicao+k2Posicao)*passo;
+            velocidade = velocidade + (1/2) * (k1V+k2V)*passo;
+    
+            dados.push(parcial);
+            tempo= round(tempo+passo,decimais);
+    
+        }while(velocidade <= velFinal)
+        let parcial = [tempo.toFixed(decimais),posicao.toFixed(2),velocidade.toFixed(4),k1Posicao.toFixed(4),k1V.toFixed(4),k2Posicao.toFixed(4),k2V.toFixed(4) ];
+        dados.push(parcial);
+        return dados;
+    }
+    
+    function calculaValores(opcaoSelecionada) {
+    
+        let dados = [['t','x(t)(m)','v(t)(m/s)','k1X','k1V', 'k2X', 'k2V']];
+        let massa = 75000;
+        let velInicial = 0;
+        let b=22;
+    
+        let decimais = passoOP[opcaoSelecionada].round;
+        let passo = passoOP[opcaoSelecionada].valor;
+           
+        funcao = function (t, x,v) {
+            return (((80+120*(1-Math.exp(-t/1.5)))*1000)-b*Math.pow(v,2))/massa;
+        }
+    
+        dados = calcularDados(dados,velInicial, funcao, decimais,passo);
+        myTable = document.getElementById("myTable");
+    
+        displayTabela(dados,myTable);
+        elaboraGrafico(dados);
+    }</script>
+</html>

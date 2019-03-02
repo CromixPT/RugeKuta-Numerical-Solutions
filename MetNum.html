@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>AF2 - Grupo 1</title>
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
+        <script>
+            var alineas =
+            [
+                {
+                    titulo: "a)",
+                    funcao: function (t, x) {
+                        return Math.pow(x, 3) / Math.pow(t, 2);
+                    },
+                    xi: 0.30,
+                    tinicial: 1.0,
+                    tfinal: 4.0,
+                },
+                {
+                    titulo: "b)",
+                    funcao: function (t, x) {
+                        return Math.exp(t * Math.log(x));
+                    },
+                    xi: 1.0,
+                    tinicial: 1.0,
+                    tfinal: 2.0,
+                },
+                {
+                    titulo: "c)",
+                    funcao: function (t, x){
+                        return t*t-x;
+                    },
+                    xi: 1.0,
+                    tinicial: 0.0,
+                    tfinal: 4.0,
+                },
+                {
+                    titulo: "d)",
+                    funcao: function (t, x) {
+                        return ((t+1)*x*x)/(t*t*t);
+                    },
+                    xi: 0.35,
+                    tinicial: 1.0,
+                    tfinal: 2.0,
+                },
+                {
+                    titulo: "e)",
+                    funcao: function (t, x) {
+                        return x * Math.pow(Math.cos(t),3);
+                    },
+                    xi: 2,
+                    tinicial: 0.0,
+                    tfinal: 3.0,
+                },
+                {
+                    titulo: "f)",
+                    funcao: function (t, x) {
+                        return Math.sin(t*x);
+                    },
+                    xi: 1,
+                    tinicial: 0.0,
+                    tfinal: 4.0,
+                },
+                {
+                    titulo: "g)",
+                    funcao: function (t, x) {
+                        return (1+3*t)*Math.sqrt(x);
+                    },
+                    xi: 0.25,
+                    tinicial: 0.0,
+                    tfinal: 2.0,
+                }
+            ];
+            function displayTabela(dados,table)
+            {   
+                var totalLinhas = table.rows.length;
+                while (--totalLinhas >= 0)
+                    table.deleteRow(totalLinhas);
+
+                for(var r = 0; r<=dados.length-1; r++)
+                {
+                    row = table.insertRow(-1);
+                    for(var c = 0; c <= 2; c++)
+                    {
+                        cell = row.insertCell(-1);
+                        cell.innerHTML  = dados[r][c];
+                    }
+                } 
+            }
+
+
+            function round(numero, decimais)
+            {
+                factor = Math.pow(10, decimais);
+                return Math.round(numero * factor) / factor;
+            }
+            var chart = null;
+            function elaboraGrafico(dados) {
+                var ctx = document.getElementById('myChart').getContext('2d');
+                var label = [];
+                var euler = [];
+                var heun = [];
+                for(var i = 1; i<=dados.length-1; i++)
+                {
+                    label.push(dados[i][0]);
+                    euler.push(dados[i][1]);
+                    heun.push(dados[i][2]);
+
+                }
+                if(chart !=null){
+                    chart.destroy();
+                }
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: label,
+                        datasets: [{
+                            label: dados[0][1],
+                            fill: false,
+                            borderColor: 'rgb(255, 170, 170)',
+                            data: euler,
+                        },
+                        {
+                            label: dados[0][2],
+                            fill: false,
+                            borderColor: 'rgb(120, 135, 171)',
+                            data: heun,
+                        }]
+                    },
+                    options: {
+                    }
+                });
+            }
+
+            function calcularDados(dados, passo,tInicial,tFinal,vInicial,funcao) {
+                let euler = vInicial;
+                let heun  = vInicial;
+                let i=0;
+                for (i = tInicial; i <= tFinal; i= round(i+passo,1) ) {
+                    let k1Euler = funcao(i,euler);
+                    let k1Heun = funcao(i,heun);
+                    let k2Heun = funcao(i+passo , heun+k1Heun*passo);
+                    let parcial = [i.toFixed(1),euler.toFixed(6),heun.toFixed(6)];
+                    euler = euler + k1Euler * passo;
+                    heun = heun + (1/2) * (k1Heun+k2Heun)*passo;
+                    dados.push(parcial);
+                }
+                return dados;
+            }
+
+            function inicializar()
+            {
+                SELECTAlineas = document.getElementById("SELECTAlineas");
+                for (i = 0; i < alineas.length; i++)
+                {
+                    var opcao = document.createElement('option');
+                    opcao.value = i;
+                    opcao.innerHTML = alineas[i].titulo;
+                    SELECTAlineas.appendChild(opcao);
+                }
+                SELECTAlineas.value = 0;    
+                calculaValores(SELECTAlineas.value);
+            }
+
+            function calculaValores(opcaoSelecionada) {
+                var funcao = 0;
+                
+                if (opcaoSelecionada < alineas.length);
+                 funcao = alineas[opcaoSelecionada].funcao;
+
+                let tInicial = alineas[opcaoSelecionada].tinicial
+
+                let tFinal = alineas[opcaoSelecionada].tfinal
+                let vInicial = alineas[opcaoSelecionada].xi
+                
+
+                let dados = [['t','x(t)Euler','x(t) Heun']];
+
+                let passo = parseFloat(document.getElementById("passo").value);
+
+                dados = calcularDados(dados, passo,tInicial,tFinal,vInicial, funcao);
+                myTable = document.getElementById("myTable");
+
+                displayTabela(dados,myTable);
+                elaboraGrafico(dados);
+
+            }
+        </script>
+</head>
+    <body style="text-align: center;" onload="inicializar();">
+
+        <h1>AF1</h1>
+        <h2>Implementação dos métodos numéricos</h2>
+        <br>    
+            <form>
+                <div class="form-group row justify-content-center">
+                    <label for="SELECTAlineas" class="col-sm-2 col-form-label">Escolha uma alinea:</label>
+                    <div class="col-sm-1">
+                        <select id="SELECTAlineas" value="A" class="form-control form-control-sm"></select>
+                    </div>
+                    <label for="passo" class="col-sm-2 col-form-label">Passo(h):</label>
+                    <div class="col-sm-1">
+                        <input type="text" class="form-control form-control-sm" id="passo" value="0.2">
+                    </div>
+                </div>
+                <input type="submit" class="btn btn-primary" onclick="calculaValores(SELECTAlineas.value);return false;">
+            </form>      
+            <hr>
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-3">
+                        <table id="myTable" class="table table-hover table-sm table-bordered" style="width: 25%;"></table>
+                    </div>
+                    <div class="col-md-9">
+                                    <div id="chartContainer"><canvas id="myChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+    </body>
+</html>
