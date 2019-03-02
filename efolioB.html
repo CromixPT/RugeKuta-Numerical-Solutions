@@ -1,0 +1,477 @@
+<!-- UC: 21048 - Física Geral
+e-fólio B 2018-19
+Aluno: 1501627 - Tiago Candeias -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Efolio B - Metodos de integração númerica</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Linha de codigo que importa a bibloteca CSS para formatação grafica da pagina, para aplicar bootstrap a formatação grafica da pagina basta remover o comentario da linha abaixo -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <!-- Linha de codigo para importar biblioteca externa para elaborar graficos para que os graficos sejam elaborados através a aplição basta remover o comentario da linha abaixo-->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
+</head>
+<!-- Area HTML, com formulario e reserva de campos para graficos e tabelas. -->
+<body style="text-align: center;" onload="inicializar()">
+    <div class="page-header" style="font-style: italic; color:#1663CD">
+        <h1> 21048 - Física Geral - Efolio B</h1>
+    </div>
+    <br>
+    <form>
+        <div class="form-group row justify-content-center">
+                <label for="SELECTMetodo" class="col-form-label" style="color:#1663CD">Qual o metodo de Runge-Kutta pretendido: </label>
+                <div class="col-sm-2">
+                    <select id="SELECTMetodo" value="A" class="form-control" onchange="processarDados(SELECTMetodo.value)"></select>
+                </div>
+                <div class="form-check" style = "align-self: flex-end" >
+                    <input type="checkbox" class="form-check-input" id="CHECKLinhas"  checked onchange="processarDados(SELECTMetodo.value)">
+                    <label class="form-check-label" for="CHECKLinhas" style="color:#1663CD">Limitar linhas da tabela? </label>
+                  </div>
+        </div>
+    </form>      
+    <hr> 
+    <div class="row justify-content-center">
+        <div class="page-header" style="font-style: italic; color:#1663CD">
+            <h1 id="tituloMetodo"></h1>      
+        </div>
+    </div>
+    <br>
+    <div class="container-fluid justify-content-center">
+        <div class="row no-gutters justify-content-center">
+            <div class="col">
+                <table id="myTable" class="table table-hover table-bordered table-sm"></table>
+                <br>
+                <table id="tabelaMedia" class="table table-hover table-bordered table-sm"></table>
+            </div>
+            <div class="col-7">
+                <div id="chartContainer"><canvas id="myChart"></canvas></div>
+                <div id="chartContainer"><canvas id="myChart2"></canvas></div>
+
+            </div>
+        </div>
+    </div>
+    
+</body>
+<script>
+/* Definição de constantes do programa*/
+const valorInicial = 0.513417119; // valor inicial
+const tInicial = -2 ; //Inicio do intervalo de integração
+const tFinal = 4; // Fim do intervalo de integração
+
+/* Função diferencial dada pelo enunciado y(t^2 - 1) 
+com esta funcao assim definida é mais facil executar o calculo sempre que necessario*/
+funcao = function (t, y) {
+    return (y*(Math.pow(t,2)- 1 ))
+}
+
+/*  Array estatico para definição das componentes de cada metodo
+    de forma a permitir a escolha dinamica do metodo RK a ser utilizado. */
+var metodoIntegracao =
+    [
+        /* Cada elemento contem os dados de integração como o h, o numero de casas decimais de h, e o numero de k usados
+        é também criado um array para guardar os dados conforme o metodo escolhido. */
+        {
+            id: 1,
+            titulo: "RK1(Euler)",
+            h: 0.1,
+            decimais: 1,
+            dados : [['t','y(t)','K1','Solução Analitica','Erro']],
+            colunas: 5,
+            
+        },
+        {
+            titulo: "RK2(Heun)",
+            h: 0.1,
+            decimais: 1,
+            dados: [['t','y(t)','K1','K2','Solução Analitica','Erro']],
+            id: 2,
+            colunas: 6,
+        },
+        {
+            id : 3,
+            titulo: "RK3 Clássico",
+            h: 0.1,
+            decimais: 1,
+            dados : [['t','y(t)','K1','K2','K3','Solução Analitica','Erro']],
+            colunas: 7,
+        },
+        {
+            id : 4,
+            titulo: "RK4 Clássico",
+            h: 0.1,
+            decimais: 1,
+            dados: [['t','y(t)','K1','K2','K3','K4','Solução Analitica','Erro']],
+            colunas: 8,
+        },
+    ];
+
+
+/*  Função para efetuar arredondamentos */
+function round(numero, decimais)
+{
+    factor = Math.pow(10, decimais);
+    return Math.round(numero * factor) / factor;
+}
+
+/*  Função para inicializar a SELECTBox conforme os metodos existentes no array de metodos de integração
+desta forma, se for necessario remover ou acrescentar metodos é mais facil. */
+function inicializar()
+{
+    let SELECTMetodo = document.getElementById("SELECTMetodo");
+    for (i = 0; i < metodoIntegracao.length; i++)
+    {
+        var opcao = document.createElement('option');
+        opcao.value = i;
+        opcao.innerHTML = metodoIntegracao[i].titulo;
+        SELECTMetodo.appendChild(opcao);
+    }
+    SELECTMetodo.value = 0;    
+    processarDados(SELECTMetodo.value);
+}
+
+/*  Preenchimento da tabela de resultados do metodo de integração */
+function displayTabela(resultados,table,colunas, maximoLinhas)
+{   
+    /* variaveis necessrias a função */
+    var ignorouLinhas = false;
+    var totalLinhas = table.rows.length;
+
+    /* apaga todas as linhas existentes na tabela para evitar erros  */
+    while (--totalLinhas >= 0)
+        table.deleteRow(totalLinhas);
+
+    /* ciclo de preenchimento da linhas/colunas da tabela */
+    for(var r = 0; r <= resultados.length-1; r++)
+    {
+        /* verificar se foi definido um maximo de linhas */
+        if (maximoLinhas != null)
+        {
+            /* verifica se esta no bloco de linhas a ignorar */
+            if (r > maximoLinhas / 2 && r < resultados.length - maximoLinhas / 2)
+            {
+                ignorouLinhas = true;
+                continue;
+            }
+            /* Insere uma linha com ... após ignorar o numero definido de linhas */
+            else if (ignorouLinhas == true)
+            {
+                row = table.insertRow(-1);
+                for(var c = 0; c < colunas; c++)
+                {                   
+                    cell = row.insertCell(-1);
+                    cell.innerHTML = "..."
+                    ignorouLinhas = false;
+                }
+            }
+        }
+        row = table.insertRow(-1);
+        /* formatação do cabeçalho da tabela */
+        if(r == 0)
+        {
+            row.style.backgroundColor = "#1663CD";
+            row.style.fontWeight = "bold";
+            row.style.color = "#000000";
+            row.style.textAlign = "center";
+        }
+        /* preenchimento das ceculas com dados dos resultados */
+        for(var c = 0; c < colunas; c++)
+        {
+            cell = row.insertCell(-1);
+            /* verfica se é o cabeçalho e preenche */
+            if(r == 0)
+            {
+                cell.innerHTML = resultados[r][c];
+                continue;
+            }
+            /* Os arredondamentos são apenas feitos para a visualização das tabelas */
+            if(c >=1 && c < colunas-1)
+                cell.innerHTML  = round(resultados[r][c],5);
+            else if(c == colunas-1)
+                cell.innerHTML  = round(resultados[r][c],3);
+            else
+                cell.innerHTML = resultados[r][c];
+        }
+    } 
+}
+
+/*  calculo do metodo de integração RK1 - Euler , solução analitica e erro verdadeiro*/
+function calculaRK1(resultados,decimais,passo){
+    /* valor inicial */
+    let valorY = valorInicial;
+    for(var t = tInicial; t<= tFinal; t=round(t+passo,decimais) ){
+        /* calculo de previsor*/
+        k1 = funcao(t,valorY);
+        /* calculo da solução analitica para o instannte t*/
+        solucaoAnalitica = Math.exp((1/3)*Math.pow(t,3)-t);
+        /* calculo da % de erro entre o valor calculado e a solução analitica */
+        erroVerdadeiro = Math.abs((solucaoAnalitica-valorY)/solucaoAnalitica) * 100;
+        /* resultados parciais */
+        parcial = [t,valorY,k1,solucaoAnalitica,erroVerdadeiro];
+        /* calculo do valorY seguindo a formula para RK1 */
+        valorY = valorY + k1 * passo;
+        /* guardar os resultados no array */
+        resultados.push(parcial);
+    }
+    return resultados;
+}
+
+/*  calculo do metodo de integração RK2 - Heun , solução analitica e erro verdadeiro*/
+function calculaRK2(resultados,decimais,passo){
+    let valorY = valorInicial;
+    for(var t = tInicial; t<= tFinal; t=round(t+passo,decimais) ){
+        /* calculo de previsor e corrector conforme formulas respectivas */
+        k1 = funcao(t,valorY);
+        k2 = funcao(t+passo, valorY + k1* passo);
+        /*  solucao analitica e % de erro para instante t*/
+        solucaoAnalitica = Math.exp((1/3)*Math.pow(t,3)-t);
+        erroVerdadeiro = Math.abs((solucaoAnalitica-valorY)/solucaoAnalitica) * 100;
+        /* resultados parciais */
+        parcial = [t,valorY,k1,k2,solucaoAnalitica,erroVerdadeiro];
+        /* calculo do valor Y conforme formula RK2 */
+        valorY = valorY +(1/2)*(k1 + k2)* passo;
+        resultados.push(parcial);
+    }
+    return resultados;
+}
+
+/*  calculo do metodo de integração RK3, solução analitica e erro verdadeiro*/
+function calculaRK3(resultados,decimais,passo){
+    let valorY = valorInicial;
+    for(var t = tInicial; t<= tFinal; t=round(t+passo,decimais) ){
+        /* calculo de previsor e corrector conforme formulas respectivas */
+        k1 = funcao(t,valorY);
+        k2 = funcao(t+(passo/2), valorY + k1* (passo/2));
+        k3 = funcao(t+passo, valorY - (k1*passo) + (2*k2)* passo );
+        /*  solucao analitica e % de erro para instante t*/
+        solucaoAnalitica = Math.exp((1/3)*Math.pow(t,3)-t);
+        erroVerdadeiro = Math.abs((solucaoAnalitica-valorY)/solucaoAnalitica) * 100;
+        /* resultados parciais */
+        parcial = [t,valorY,k1,k2,k3,solucaoAnalitica,erroVerdadeiro];
+        /* calculo do valor Y conforme formula RK3 */
+        valorY = valorY +(1/6)*(k1 + (4*k2) + k3)* passo;
+        resultados.push(parcial);
+    }
+    return resultados;
+}
+
+/*  calculo do metodo de integração RK3, solução analitica e erro verdadeiro*/
+function calculaRK4(resultados,decimais,passo){
+    let valorY = valorInicial;  
+    for(var t = tInicial; t<= tFinal; t=round(t+passo,decimais) ){
+        /* calculo de previsor e corrector conforme formulas respectivas */
+        k1 = funcao(t,valorY);
+        k2 = funcao(t+(passo/2), valorY + k1* (passo/2));
+        k3 = funcao(t+(passo/2), valorY + k2* (passo/2));
+        k4 = funcao(t+passo, valorY + k3 * passo);
+        /*  solucao analitica e % de erro para instante t*/
+        solucaoAnalitica = Math.exp((1/3)*Math.pow(t,3)-t);
+        erroVerdadeiro = Math.abs((solucaoAnalitica-valorY)/solucaoAnalitica) * 100;
+        /* resultados parciais */
+        parcial = [t,valorY,k1,k2,k3,k4,solucaoAnalitica,erroVerdadeiro];
+        /* calculo do valor Y conforme formula RK3 */
+        valorY = valorY +(1/6)*(k1 + (2*k2) + (2*k3) + k4)* passo;
+        resultados.push(parcial);
+    }
+    return resultados;
+}
+
+/* variaveis globais para garantir que é feito o reset aos graficos */
+var chart = null;
+var chart2 = null
+function elaboraGrafico(resultados) {
+    /* obtem a area de grafico definida no HMTL */
+    var ctx = document.getElementById('myChart').getContext('2d');
+    var ctx2 = document.getElementById('myChart2').getContext('2d');
+    /* arrays de dados e legendas para construção dos graficos */
+    var label = [];
+    var dados = [];
+    /* ciclo para grafico entre [-2, 2] */
+    for(var i = 1; i<=41; i++)
+    {
+        label.push(resultados[i][0]);
+        dados.push(resultados[i][1]);
+    }
+    /* se grafico já existe é apagado */
+    if(chart !=null){
+        chart.destroy();
+    }
+    /* desenho de grafico com recurso a biblioteca externa */
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+        labels: label,
+        datasets: [{
+            label: resultados[0][1],
+            fill: false,
+            borderColor: 'rgb(255, 170, 170)',
+            data: dados,
+        },]
+        },
+        options: {
+        responsive: true,
+        }
+    });
+    /* arrays de dados e legendas para construção dos graficos */
+    var label2 = [];
+    var dados2 = [];
+    /* ciclo para grafico entre ]2, 4] */
+    for(i= 42; i <= resultados.length-1; i++)
+    {
+        label2.push(resultados[i][0]);
+        dados2.push(resultados[i][1]);
+    }
+    /* se grafico já existe é apagado */
+    if(chart2 !=null){
+        chart2.destroy();
+    }
+    /* desenho de grafico 2 com recurso a biblioteca externa */
+    chart2 = new Chart(ctx2, {
+        type: 'line',
+        data: {
+        labels: label2,
+        datasets: [{
+            label: resultados[0][1],
+            fill: false,
+            borderColor: 'rgb(255, 170, 170)',
+            data: dados2,
+        },]
+        },
+        options: {
+        responsive: true,
+        }
+    });
+}
+
+/* exibição da tabela de medias */
+function displayTabelaMedias(medias,tabelaMedia)
+{
+    /* apagar a tabela já existente */
+    let totalLinhas = tabelaMedia.rows.length;
+    while (--totalLinhas >= 0)
+        tabelaMedia.deleteRow(totalLinhas);
+
+    /* ciclo para construção da tabela */
+    for(var r = 0; r <= medias.length-1; r++)
+    {
+        row = tabelaMedia.insertRow(-1);
+        /* formatação do cabeçalho da tabela */
+        if(r == 0)
+        {
+            row.style.backgroundColor = "#1663CD";
+            row.style.fontWeight = "bold";
+            row.style.color = "#000000";
+            row.style.textAlign = "center";
+        }
+        /* preencimento das ceculas da tabela com os dados de medias */
+        for(var c = 0; c <= 2; c++)
+        {
+            cell = row.insertCell(-1);
+            cell.innerHTML  = medias[r][c];
+        }
+    } 
+}
+
+/* calculo de media de valores e media de erros nos intervalos do graficos */
+function calculaMedias(resultados,medias,colunas){
+    /* variaveis necessarias as funçoes */
+    let contador = 0;
+    let mediaY = 0;
+    let mediaErro = 0;
+    /* ciclo para determinar medias no intervalo [-2,2] */
+    for(var i=1; i<=41; i++){
+        mediaY += resultados[i][1];
+        mediaErro += resultados[i][colunas-1];
+        contador++;
+    }
+    mediaY= mediaY / contador;
+    mediaErro = mediaErro/ contador;
+    /* resultados parciais */
+    parcial = ['[-2,2]',round(mediaY,4),round(mediaErro,4)]
+    /*  guardar resultados no array de medias*/
+    medias.push(parcial);
+    /* reset as variaveis */
+    mediaY = 0;
+    mediaErro = 0;
+    contador = 0;
+    /*  ciclo para determinar medias no intervalo ]2,4]*/
+    for(var i=42; i<=resultados.length-1; i++){
+        mediaY += resultados[i][1];
+        mediaErro += resultados[i][colunas-1];1
+        contador++;
+    }
+    mediaY= mediaY / contador;
+    mediaErro = mediaErro/ contador;
+    /* resultaddos parciais */
+    parcial = [']2,4]', round(mediaY,4),round(mediaErro,4)]
+    /* guardar resultados no array de medias */
+    medias.push(parcial);
+
+    return medias;
+
+}
+
+/* Função que recebe os dados ao haver uma alteração da selectbox/checkbox e inicia o calculo conforme
+o metodo de integração selecionado */
+function processarDados(opcaoSelecionada)
+{
+    /* variaveis necessarias obtidas conforme o metodo de integração selecionado
+    neste caso em concreto é irrelevante, mas se for pretendido mudar algum dado para um 
+    metodo especifico é mais facil */    
+    let decimais = metodoIntegracao[opcaoSelecionada].decimais;
+    let passo = metodoIntegracao[opcaoSelecionada].h;
+    let resultados =  metodoIntegracao[opcaoSelecionada].dados;
+    let metodoSelecionado = metodoIntegracao[opcaoSelecionada].id;
+    let colunas = metodoIntegracao[opcaoSelecionada].colunas;
+    let maximoLinhas;
+    let medias = [['Intervalo','Valor Medio', 'Valor Medio de Erro']];
+    
+    /* obter referencias dos elementos HTML presentes na pagina, que são usados para input/oputs */
+    let myTable = document.getElementById("myTable");
+    let titulo = document.getElementById("tituloMetodo")
+    let tabelaMedia = document.getElementById("tabelaMedia");
+    let omitirLinhas = document.getElementById("CHECKLinhas").checked;
+    /* se omitir linhas tiver sido selecionado atualizar o valor para 15 linhas */
+    if(omitirLinhas == true)
+        maximoLinhas = 16;
+    /* reset ao array de resultados */
+    resultados.length  = 1;    
+    /* conforme o metodo de integração selecionado é chamado o metodo de calculo, atualizadas as tabelas
+    e elaborados os graficos. */
+    switch(metodoSelecionado){
+        case 1:
+            resultados = calculaRK1(resultados,decimais,passo);
+            displayTabela(resultados,myTable,colunas, maximoLinhas );
+            medias = calculaMedias(resultados,medias,colunas);
+            displayTabelaMedias(medias,tabelaMedia)
+            elaboraGrafico(resultados);
+
+            break;
+        case 2:
+            resultados = calculaRK2(resultados,decimais,passo);
+            displayTabela(resultados,myTable,colunas, maximoLinhas);
+            medias = calculaMedias(resultados,medias,colunas);
+            displayTabelaMedias(medias,tabelaMedia)
+            elaboraGrafico(resultados);
+            break;
+        case 3:
+            resultados = calculaRK3(resultados,decimais,passo);
+            displayTabela(resultados,myTable,colunas, maximoLinhas);
+            medias = calculaMedias(resultados,medias,colunas);
+            displayTabelaMedias(medias,tabelaMedia)
+            elaboraGrafico(resultados);
+            break;
+        case 4:
+            resultados = calculaRK4(resultados,decimais,passo);
+            displayTabela(resultados,myTable,colunas, maximoLinhas);
+            medias = calculaMedias(resultados,medias,colunas);
+            displayTabelaMedias(medias,tabelaMedia)
+            elaboraGrafico(resultados);
+            break;
+    }
+    /* atualiza o titulo do metodo selecionado */
+    titulo.innerHTML = metodoIntegracao[opcaoSelecionada].titulo;
+}
+</script>
+</html>
